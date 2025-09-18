@@ -1,5 +1,6 @@
-import { type User, type InsertUser, type Question, type InsertQuestion } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type User, type InsertUser, type Question, type InsertQuestion, users, questions } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -15,76 +16,73 @@ export interface IStorage {
   updateQuestion(id: string, updates: Partial<InsertQuestion>): Promise<Question | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private questions: Map<string, Question>;
-
-  constructor() {
-    this.users = new Map();
-    this.questions = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
 
   async createQuestion(insertQuestion: InsertQuestion): Promise<Question> {
-    const id = randomUUID();
-    const question: Question = {
-      ...insertQuestion,
-      id,
-      createdAt: new Date(),
-      tags: insertQuestion.tags || [],
-      options: insertQuestion.options || null,
-      answer: insertQuestion.answer || null,
-      confidence: insertQuestion.confidence || 0,
-    };
-    this.questions.set(id, question);
+    const [question] = await db
+      .insert(questions)
+      .values({
+        ...insertQuestion,
+        tags: insertQuestion.tags || [],
+        options: insertQuestion.options || null,
+        answer: insertQuestion.answer || null,
+        confidence: insertQuestion.confidence || 0,
+      })
+      .returning();
     return question;
   }
 
   async getQuestion(id: string): Promise<Question | undefined> {
-    return this.questions.get(id);
+    const [question] = await db.select().from(questions).where(eq(questions.id, id));
+    return question || undefined;
   }
 
   async getAllQuestions(): Promise<Question[]> {
-    return Array.from(this.questions.values()).sort(
-      (a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
-    );
+    return await db
+      .select()
+      .from(questions)
+      .orderBy(desc(questions.createdAt));
   }
 
   async getQuestionsByTags(tags: string[]): Promise<Question[]> {
-    return Array.from(this.questions.values()).filter((question) => {
+    // Note: This is a simplified implementation. For production, you'd want proper JSONB querying
+    const allQuestions = await db.select().from(questions);
+    return allQuestions.filter((question) => {
       const questionTags = Array.isArray(question.tags) ? question.tags : [];
       return tags.some((tag) => questionTags.includes(tag));
     });
   }
 
   async deleteQuestion(id: string): Promise<boolean> {
-    return this.questions.delete(id);
+    const result = await db.delete(questions).where(eq(questions.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   async updateQuestion(id: string, updates: Partial<InsertQuestion>): Promise<Question | undefined> {
-    const existing = this.questions.get(id);
-    if (!existing) return undefined;
-
-    const updated: Question = { ...existing, ...updates };
-    this.questions.set(id, updated);
-    return updated;
+    const [updatedQuestion] = await db
+      .update(questions)
+      .set(updates)
+      .where(eq(questions.id, id))
+      .returning();
+    return updatedQuestion || undefined;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

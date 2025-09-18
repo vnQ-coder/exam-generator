@@ -138,6 +138,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export questions as JSON
+  app.get("/api/questions/export/json", async (req, res) => {
+    try {
+      const questions = await storage.getAllQuestions();
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        totalQuestions: questions.length,
+        questions: questions.map(q => ({
+          id: q.id,
+          question: q.question,
+          type: q.type,
+          difficulty: q.difficulty,
+          answer: q.answer,
+          options: q.options,
+          tags: q.tags,
+          confidence: q.confidence,
+          sourceText: q.sourceText,
+          createdAt: q.createdAt
+        }))
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="questions-export-${new Date().toISOString().split('T')[0]}.json"`);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting questions as JSON:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to export questions" 
+      });
+    }
+  });
+
+  // Export questions as CSV
+  app.get("/api/questions/export/csv", async (req, res) => {
+    try {
+      const questions = await storage.getAllQuestions();
+      
+      // CSV headers
+      const headers = [
+        'ID', 'Question', 'Type', 'Difficulty', 'Answer', 'Options', 'Tags', 'Confidence', 'Created At', 'Source Text'
+      ];
+      
+      // Convert questions to CSV rows
+      const csvRows = questions.map(q => [
+        q.id,
+        `"${(q.question || '').replace(/"/g, '""')}"`, // Escape quotes
+        q.type,
+        q.difficulty,
+        `"${(q.answer || '').replace(/"/g, '""')}"`,
+        `"${Array.isArray(q.options) ? q.options.join('; ') : ''}"`,
+        `"${Array.isArray(q.tags) ? q.tags.join(', ') : ''}"`,
+        q.confidence || 0,
+        q.createdAt ? new Date(q.createdAt).toISOString() : '',
+        `"${(q.sourceText || '').replace(/"/g, '""')}"`
+      ]);
+      
+      const csvContent = [headers.join(','), ...csvRows.map(row => row.join(','))].join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="questions-export-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error exporting questions as CSV:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to export questions" 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

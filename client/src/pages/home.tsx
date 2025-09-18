@@ -105,6 +105,21 @@ export default function Home() {
     });
   };
 
+  const handleExport = (format: 'json' | 'csv') => {
+    const url = `/api/questions/export/${format}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `questions-export-${new Date().toISOString().split('T')[0]}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Export Started",
+      description: `Questions are being exported as ${format.toUpperCase()}.`,
+    });
+  };
+
   const questions = questionsData?.questions || [];
 
   return (
@@ -293,13 +308,23 @@ export default function Home() {
               </Badge>
             </CardTitle>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" data-testid="button-export">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleExport('json')}
+                data-testid="button-export-json"
+              >
                 <Download className="mr-1 h-4 w-4" />
-                Export
+                Export JSON
               </Button>
-              <Button variant="outline" size="sm" data-testid="button-save-all">
-                <Save className="mr-1 h-4 w-4" />
-                Save All
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleExport('csv')}
+                data-testid="button-export-csv"
+              >
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
               </Button>
             </div>
           </div>
