@@ -13,6 +13,14 @@ export const questions = pgTable("questions", {
   options: jsonb("options"), // For multiple choice questions
   tags: jsonb("tags").default([]), // Array of tags
   confidence: integer("confidence").default(0), // AI confidence score 0-100
+  // Quality assessment fields
+  qualityScore: integer("quality_score").default(0), // Overall quality score 0-100
+  clarityScore: integer("clarity_score").default(0), // Clarity rating 0-100
+  relevanceScore: integer("relevance_score").default(0), // Relevance rating 0-100
+  difficultyScore: integer("difficulty_score").default(0), // Difficulty appropriateness 0-100
+  engagementScore: integer("engagement_score").default(0), // Engagement rating 0-100
+  qualityFeedback: text("quality_feedback"), // AI feedback on quality
+  qualitySuggestions: jsonb("quality_suggestions").default([]), // Array of improvement suggestions
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -29,6 +37,7 @@ export const generateQuestionsSchema = z.object({
   includeAnswers: z.boolean().default(true),
   autoTag: z.boolean().default(true),
   contextAware: z.boolean().default(false),
+  enableQualityCheck: z.boolean().default(true),
 });
 
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;

@@ -134,3 +134,94 @@ export async function generateTags(text: string): Promise<string[]> {
     return ["General"];
   }
 }
+
+interface QualityScore {
+  overallScore: number;
+  clarity: number;
+  relevance: number;
+  difficulty: number;
+  engagement: number;
+  feedback: string;
+  suggestions: string[];
+}
+
+export async function assessQuestionQuality(
+  question: string,
+  sourceText: string,
+  questionType: string,
+  difficulty: string
+): Promise<QualityScore> {
+  try {
+    const systemPrompt = `You are an expert educational content reviewer. Assess the quality of this question based on the source material.
+
+Evaluate the question on these criteria (score 0-100 each):
+1. Clarity: Is the question clear, unambiguous, and well-written?
+2. Relevance: How well does it relate to the source material?
+3. Difficulty: Is the difficulty appropriate for the stated level?
+4. Engagement: Is it interesting and thought-provoking?
+
+Also provide:
+- Overall score (weighted average)
+- Brief feedback explaining the scores
+- 2-3 specific improvement suggestions
+
+Return ONLY valid JSON in this format:
+{
+  "overallScore": 85,
+  "clarity": 90,
+  "relevance": 85,
+  "difficulty": 80,
+  "engagement": 85,
+  "feedback": "This question effectively tests comprehension...",
+  "suggestions": ["Consider adding more specific context", "The wording could be simplified"]
+}`;
+
+    const content = `Question: ${question}
+Type: ${questionType}
+Stated Difficulty: ${difficulty}
+Source Text: ${sourceText}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            overallScore: { type: "number" },
+            clarity: { type: "number" },
+            relevance: { type: "number" },
+            difficulty: { type: "number" },
+            engagement: { type: "number" },
+            feedback: { type: "string" },
+            suggestions: {
+              type: "array",
+              items: { type: "string" }
+            }
+          },
+          required: ["overallScore", "clarity", "relevance", "difficulty", "engagement", "feedback", "suggestions"]
+        },
+      },
+      contents: content,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini API");
+    }
+
+    return JSON.parse(rawJson);
+  } catch (error) {
+    console.error("Failed to assess question quality:", error);
+    return {
+      overallScore: 70,
+      clarity: 70,
+      relevance: 70,
+      difficulty: 70,
+      engagement: 70,
+      feedback: "Quality assessment unavailable",
+      suggestions: ["Review question clarity", "Check relevance to source material"]
+    };
+  }
+}

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Brain, FileText, Settings, Trash2, Copy, Edit, Download, Save } from "lucide-react";
+import { Brain, FileText, Settings, Trash2, Copy, Edit, Download, Save, Star, TrendingUp, Zap, Target, Users } from "lucide-react";
 import type { Question, GenerateQuestionsRequest } from "@shared/schema";
 
 export default function Home() {
@@ -22,6 +22,7 @@ export default function Home() {
   const [includeAnswers, setIncludeAnswers] = useState(true);
   const [autoTag, setAutoTag] = useState(true);
   const [contextAware, setContextAware] = useState(false);
+  const [enableQualityCheck, setEnableQualityCheck] = useState(true);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -90,6 +91,7 @@ export default function Home() {
       includeAnswers,
       autoTag,
       contextAware,
+      enableQualityCheck,
     });
   };
 
@@ -250,6 +252,15 @@ export default function Home() {
                       data-testid="checkbox-context-aware"
                     />
                     <Label htmlFor="context-aware" className="text-sm">Context-aware generation</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="enable-quality-check"
+                      checked={enableQualityCheck}
+                      onCheckedChange={(checked) => setEnableQualityCheck(!!checked)}
+                      data-testid="checkbox-enable-quality-check"
+                    />
+                    <Label htmlFor="enable-quality-check" className="text-sm">Enable AI quality scoring</Label>
                   </div>
                 </div>
               </div>
@@ -433,6 +444,56 @@ export default function Home() {
                       <p className="text-sm">
                         <strong>Answer:</strong> {question.answer}
                       </p>
+                    </div>
+                  )}
+
+                  {question.qualityScore && question.qualityScore > 0 && (
+                    <div className="mb-3 p-3 bg-secondary/50 rounded-md">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="text-sm font-semibold flex items-center">
+                          <Star className="mr-1 h-4 w-4 text-yellow-500" />
+                          Quality Assessment
+                        </h5>
+                        <Badge variant="secondary" data-testid={`badge-quality-score-${question.id}`}>
+                          {question.qualityScore}/100
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                        <div className="flex items-center">
+                          <Zap className="mr-1 h-3 w-3 text-blue-500" />
+                          Clarity: {question.clarityScore || 0}
+                        </div>
+                        <div className="flex items-center">
+                          <Target className="mr-1 h-3 w-3 text-green-500" />
+                          Relevance: {question.relevanceScore || 0}
+                        </div>
+                        <div className="flex items-center">
+                          <TrendingUp className="mr-1 h-3 w-3 text-orange-500" />
+                          Difficulty: {question.difficultyScore || 0}
+                        </div>
+                        <div className="flex items-center">
+                          <Users className="mr-1 h-3 w-3 text-purple-500" />
+                          Engagement: {question.engagementScore || 0}
+                        </div>
+                      </div>
+                      {question.qualityFeedback && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {question.qualityFeedback}
+                        </p>
+                      )}
+                      {Array.isArray(question.qualitySuggestions) && question.qualitySuggestions.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium mb-1">Suggestions:</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            {question.qualitySuggestions.map((suggestion, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="mr-1">•</span>
+                                <span>{suggestion}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
 

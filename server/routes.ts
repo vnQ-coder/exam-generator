@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateQuestionsSchema, insertQuestionSchema } from "@shared/schema";
-import { generateQuestions } from "./services/gemini";
+import { generateQuestions, assessQuestionQuality } from "./services/gemini";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Generate questions endpoint
@@ -12,9 +12,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const generatedQuestions = await generateQuestions(validatedData);
       
-      // Store questions in database
+      // Store questions in database with optional quality assessment
       const storedQuestions = await Promise.all(
         generatedQuestions.map(async (q) => {
+          let qualityData = {};
+          
+          // Perform quality assessment if enabled
+          if (validatedData.enableQualityCheck) {
+            try {
+              const qualityScore = await assessQuestionQuality(
+                q.question,
+                validatedData.sourceText,
+                q.type,
+                q.difficulty
+              );
+              
+              qualityData = {
+                qualityScore: Math.round(qualityScore.overallScore),
+                clarityScore: Math.round(qualityScore.clarity),
+                relevanceScore: Math.round(qualityScore.relevance),
+                difficultyScore: Math.round(qualityScore.difficulty),
+                engagementScore: Math.round(qualityScore.engagement),
+                qualityFeedback: qualityScore.feedback,
+                qualitySuggestions: qualityScore.suggestions,
+              };
+            } catch (error) {
+              console.error("Quality assessment failed for question:", error);
+              // Continue without quality data if assessment fails
+            }
+          }
+          
           const questionData = {
             question: q.question,
             type: q.type,
@@ -24,6 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             options: q.options || null,
             tags: q.tags,
             confidence: q.confidence,
+            ...qualityData,
           };
           
           return await storage.createQuestion(questionData);
