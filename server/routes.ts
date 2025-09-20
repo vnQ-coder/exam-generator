@@ -1,10 +1,27 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { generateQuestionsSchema, insertQuestionSchema } from "@shared/schema";
+import { generateQuestionsSchema, insertQuestionSchema, generatePaperSchema, paperConfigurationSchema } from "@shared/schema";
 import { generateQuestions, assessQuestionQuality } from "./services/gemini";
+import { simpleRAGService } from "./services/simpleRAG";
+import { paperGeneratorService } from "./services/paperGenerator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Create question endpoint
+  app.post("/api/questions", async (req, res) => {
+    try {
+      const validatedData = insertQuestionSchema.parse(req.body);
+      const question = await storage.createQuestion(validatedData);
+      res.json({ success: true, question });
+    } catch (error) {
+      console.error("Error creating question:", error);
+      res.status(400).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to create question" 
+      });
+    }
+  });
+
   // Generate questions endpoint
   app.post("/api/questions/generate", async (req, res) => {
     try {
@@ -233,6 +250,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         error: "Failed to export questions" 
+      });
+    }
+  });
+
+  // RAG Search endpoint
+  app.post("/api/rag/search", async (req, res) => {
+    try {
+      const { query, limit = 5, threshold = 0.7 } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Query is required and must be a string" 
+        });
+      }
+
+      const result = await simpleRAGService.searchKnowledge(query, limit, threshold);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Error in RAG search:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to perform RAG search" 
+      });
+    }
+  });
+
+  // RAG Knowledge base stats
+  app.get("/api/rag/stats", async (req, res) => {
+    try {
+      const stats = await simpleRAGService.getKnowledgeStats();
+      res.json({ success: true, stats });
+    } catch (error) {
+      console.error("Error getting RAG stats:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to get RAG stats" 
+      });
+    }
+  });
+
+  // Initialize RAG system
+  app.post("/api/rag/init", async (req, res) => {
+    try {
+      // Simple RAG doesn't need initialization, just return success
+      res.json({ success: true, message: "RAG system ready" });
+    } catch (error) {
+      console.error("Error initializing RAG system:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to initialize RAG system" 
+      });
+    }
+  });
+
+  // Paper Generation Endpoints
+  app.post("/api/papers/generate", async (req, res) => {
+    try {
+      const validatedData = generatePaperSchema.parse(req.body);
+      const result = await paperGeneratorService.generatePaper(validatedData);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error generating paper:", error);
+      res.status(400).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to generate paper" 
+      });
+    }
+  });
+
+  // Get available topics (MUST come before /api/papers/:id)
+  app.get("/api/papers/topics", async (req, res) => {
+    try {
+      const topics = await paperGeneratorService.getAvailableTopics();
+      res.json({ success: true, topics });
+    } catch (error) {
+      console.error("Error fetching topics:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch topics" 
+      });
+    }
+  });
+
+  // Paper Templates (MUST come before /api/papers/:id)
+  app.get("/api/papers/templates", async (req, res) => {
+    try {
+      const templates = await paperGeneratorService.getPaperTemplates();
+      res.json({ success: true, templates });
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch templates" 
+      });
+    }
+  });
+
+  app.post("/api/papers/templates", async (req, res) => {
+    try {
+      const validatedData = paperConfigurationSchema.parse(req.body);
+      const template = await paperGeneratorService.savePaperTemplate(validatedData);
+      res.json({ success: true, template });
+    } catch (error) {
+      console.error("Error saving template:", error);
+      res.status(400).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to save template" 
+      });
+    }
+  });
+
+  // Get all papers
+  app.get("/api/papers", async (req, res) => {
+    try {
+      const { QuestionPaper } = await import("@shared/schema");
+      const papers = await QuestionPaper.find().sort({ createdAt: -1 });
+      res.json({ success: true, papers });
+    } catch (error) {
+      console.error("Error fetching papers:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch papers" 
+      });
+    }
+  });
+
+  // Get paper by ID
+  app.get("/api/papers/:id", async (req, res) => {
+    try {
+      const { QuestionPaper } = await import("@shared/schema");
+      const paper = await QuestionPaper.findById(req.params.id);
+      
+      if (!paper) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Paper not found" 
+        });
+      }
+      
+      res.json({ success: true, paper });
+    } catch (error) {
+      console.error("Error fetching paper:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch paper" 
+      });
+    }
+  });
+
+  // Delete paper
+  app.delete("/api/papers/:id", async (req, res) => {
+    try {
+      const { QuestionPaper } = await import("@shared/schema");
+      const result = await QuestionPaper.findByIdAndDelete(req.params.id);
+      
+      if (!result) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Paper not found" 
+        });
+      }
+      
+      res.json({ success: true, message: "Paper deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting paper:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to delete paper" 
       });
     }
   });

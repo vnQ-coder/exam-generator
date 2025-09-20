@@ -4,10 +4,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Card, CardContent } from "@/components/ui/card";
-import { Brain, Database, Tags, BarChart3, Settings, Bell, User } from "lucide-react";
+import { Brain, Database, Tags, BarChart3, Settings, Bell, User, FileText } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import Home from "@/pages/home";
 import QuestionBank from "@/pages/question-bank";
+import RAGSearchPage from "@/pages/rag-search";
+import PaperGenerator from "@/pages/paper-generator";
 import NotFound from "@/pages/not-found";
 
 function Sidebar() {
@@ -16,6 +18,8 @@ function Sidebar() {
   const navItems = [
     { path: "/", icon: Brain, label: "Generate", testId: "nav-generate" },
     { path: "/question-bank", icon: Database, label: "Question Bank", testId: "nav-question-bank" },
+    { path: "/rag-search", icon: Brain, label: "Knowledge Search", testId: "nav-rag-search" },
+    { path: "/paper-generator", icon: FileText, label: "Paper Generator", testId: "nav-paper-generator" },
     { path: "/categories", icon: Tags, label: "Categories", testId: "nav-categories" },
     { path: "/analytics", icon: BarChart3, label: "Analytics", testId: "nav-analytics" },
     { path: "/settings", icon: Settings, label: "Settings", testId: "nav-settings" },
@@ -87,6 +91,16 @@ function Header() {
           title: "Question Bank",
           description: "Browse and manage your generated questions"
         };
+      case "/rag-search":
+        return {
+          title: "Knowledge Search",
+          description: "Search your knowledge base with RAG-powered AI"
+        };
+      case "/paper-generator":
+        return {
+          title: "Paper Generator",
+          description: "Create structured question papers with AI"
+        };
       default:
         return {
           title: "AI Question Generator",
@@ -142,6 +156,8 @@ function Router() {
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/question-bank" component={QuestionBank} />
+            <Route path="/rag-search" component={RAGSearchPage} />
+            <Route path="/paper-generator" component={PaperGenerator} />
             <Route path="/categories" component={() => <PlaceholderPage title="Categories" />} />
             <Route path="/analytics" component={() => <PlaceholderPage title="Analytics" />} />
             <Route path="/settings" component={() => <PlaceholderPage title="Settings" />} />

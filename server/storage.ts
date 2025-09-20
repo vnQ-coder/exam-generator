@@ -1,6 +1,4 @@
-import { type User, type InsertUser, type Question, type InsertQuestion, users, questions } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { type User, type InsertUser, type Question, type InsertQuestion, User as UserModel, Question as QuestionModel } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -18,70 +16,105 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
+    try {
+      const user = await UserModel.findById(id);
+      return user || undefined;
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return undefined;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
+    try {
+      const user = await UserModel.findOne({ username });
+      return user || undefined;
+    } catch (error) {
+      console.error('Error getting user by username:', error);
+      return undefined;
+    }
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
+    try {
+      const user = new UserModel(insertUser);
+      await user.save();
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   }
 
   async createQuestion(insertQuestion: InsertQuestion): Promise<Question> {
-    const [question] = await db
-      .insert(questions)
-      .values({
+    try {
+      const question = new QuestionModel({
         ...insertQuestion,
         tags: insertQuestion.tags || [],
-        options: insertQuestion.options || null,
-        answer: insertQuestion.answer || null,
+        options: insertQuestion.options || undefined,
+        answer: insertQuestion.answer || undefined,
         confidence: insertQuestion.confidence || 0,
-      })
-      .returning();
-    return question;
+      });
+      await question.save();
+      return question;
+    } catch (error) {
+      console.error('Error creating question:', error);
+      throw error;
+    }
   }
 
   async getQuestion(id: string): Promise<Question | undefined> {
-    const [question] = await db.select().from(questions).where(eq(questions.id, id));
-    return question || undefined;
+    try {
+      const question = await QuestionModel.findById(id);
+      return question || undefined;
+    } catch (error) {
+      console.error('Error getting question:', error);
+      return undefined;
+    }
   }
 
   async getAllQuestions(): Promise<Question[]> {
-    return await db
-      .select()
-      .from(questions)
-      .orderBy(desc(questions.createdAt));
+    try {
+      return await QuestionModel.find().sort({ createdAt: -1 });
+    } catch (error) {
+      console.error('Error getting all questions:', error);
+      return [];
+    }
   }
 
   async getQuestionsByTags(tags: string[]): Promise<Question[]> {
-    // Note: This is a simplified implementation. For production, you'd want proper JSONB querying
-    const allQuestions = await db.select().from(questions);
-    return allQuestions.filter((question) => {
-      const questionTags = Array.isArray(question.tags) ? question.tags : [];
-      return tags.some((tag) => questionTags.includes(tag));
-    });
+    try {
+      return await QuestionModel.find({ 
+        tags: { $in: tags } 
+      }).sort({ createdAt: -1 });
+    } catch (error) {
+      console.error('Error getting questions by tags:', error);
+      return [];
+    }
   }
 
   async deleteQuestion(id: string): Promise<boolean> {
-    const result = await db.delete(questions).where(eq(questions.id, id));
-    return (result.rowCount || 0) > 0;
+    try {
+      const result = await QuestionModel.findByIdAndDelete(id);
+      return !!result;
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      return false;
+    }
   }
 
   async updateQuestion(id: string, updates: Partial<InsertQuestion>): Promise<Question | undefined> {
-    const [updatedQuestion] = await db
-      .update(questions)
-      .set(updates)
-      .where(eq(questions.id, id))
-      .returning();
-    return updatedQuestion || undefined;
+    try {
+      const question = await QuestionModel.findByIdAndUpdate(
+        id, 
+        updates, 
+        { new: true, runValidators: true }
+      );
+      return question || undefined;
+    } catch (error) {
+      console.error('Error updating question:', error);
+      return undefined;
+    }
   }
 }
 
